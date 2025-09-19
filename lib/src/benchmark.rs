@@ -7,7 +7,7 @@ use super::{
 };
 use std::{
     env,
-    fs::{create_dir_all, read_dir},
+    fs::{create_dir_all, read_dir, copy, rename},
     path::PathBuf,
     process::Command,
     str,
@@ -146,115 +146,42 @@ impl Benchmark {
     }
 
     fn compile_moonbit(&self) -> Result<(), Error> {
-        // Paths
         let mut source_path = self.base_path.clone().join(&self.name);
         source_path.set_extension(BenchmarkLanguage::MoonBit.ext());
+        let workspace = PathBuf::from("target_scc").join("moon_workspace");
+        // create_dir_all(&workspace)
+        //     .map_err(|e| Error::file_access(&workspace, "create moon workshop dir", e))?;
+
+        let dst_file = workspace.join("working.mbt");
+        copy(&source_path, &dst_file)
+            .map_err(|e| Error::file_access(&dst_file, "copy mbt file", e))?;
+
+        let mut build_cmd = Command::new("moon");
+        build_cmd.arg("build");
+        build_cmd.args(["--target", "native", "--release"]);
+        build_cmd.current_dir(&workspace);
+        let out = build_cmd
+            .output()
+            .map_err(|err| Error::compile(&self.name, &BenchmarkLanguage::MoonBit, "", &err.to_string()))?;
+        if !out.status.success() {
+            return Err(Error::compile(
+                &self.name,
+                &BenchmarkLanguage::MoonBit,
+                str::from_utf8(&out.stdout).unwrap_or(""),
+                str::from_utf8(&out.stderr).unwrap_or(""),
+            ));
+        }
 
         let out_path = self.bin_path(&BenchmarkLanguage::MoonBit)?;
+        let built = workspace
+            .join("target")
+            .join("native")
+            .join("release")
+            .join("build")
+            .join("benchmoon.exe");
 
-        // Working dir for generated artifacts
-        let work_dir = self.base_path.join("target_moonbit");
-        create_dir_all(&work_dir)
-            .map_err(|e| Error::file_access(&work_dir, "create work dir", e))?;
-
-        // Derive file stem and intermediate outputs
-        let file_stem = source_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .ok_or(Error::path_access(&source_path, "Get file stem"))?;
-        let core_out = work_dir.join(format!("{file_stem}.core"));
-        let c_out = work_dir.join(format!("{file_stem}.c"));
-
-        // Resolve HOME (prefer HOME, fallback USERPROFILE)
-        let home = env::var("HOME").or_else(|_| env::var("USERPROFILE"))
-            .map_err(|e| Error::working_dir("read HOME/USERPROFILE env", e))?;
-        let home = PathBuf::from(home);
-        let moon_home = home.join(".moon");
-        let std_bundle = moon_home.join("lib/core/target/native/release/bundle");
-        let abort_core = std_bundle.join("abort/abort.core");
-        let core_core = std_bundle.join("core.core");
-        let include_dir = moon_home.join("include");
-        let lib_dir = moon_home.join("lib");
-        let runtime_c = lib_dir.join("runtime.c");
-
-        // Pick a package name; map it to the current benchmark base_path
-        let pkg_name = format!("moon/run/{}", self.name.to_lowercase());
-
-        // 1) moonc build-package -> .core
-        let mut cmd1 = Command::new("moonc");
-        cmd1.arg("build-package");
-        cmd1.arg(&source_path);
-        cmd1.arg("-o");
-        cmd1.arg(&core_out);
-        cmd1.arg("-std-path");
-        cmd1.arg(&std_bundle);
-        cmd1.arg("-is-main");
-        cmd1.arg("-pkg");
-        cmd1.arg(&pkg_name);
-        cmd1.args(["-g", "-O0", "-source-map", "-target", "native"]);
-
-        let out1 = cmd1
-            .output()
-            .map_err(|err| Error::compile(&self.name, &BenchmarkLanguage::MoonBit, "", &err.to_string()))?;
-        if !out1.status.success() {
-            return Err(Error::compile(
-                &self.name,
-                &BenchmarkLanguage::MoonBit,
-                str::from_utf8(&out1.stdout).unwrap_or(""),
-                str::from_utf8(&out1.stderr).unwrap_or(""),
-            ));
-        }
-
-        // 2) moonc link-core -> .c
-        let mut cmd2 = Command::new("moonc");
-        cmd2.arg("link-core");
-        cmd2.arg(&abort_core);
-        cmd2.arg(&core_core);
-        cmd2.arg(&core_out);
-        cmd2.arg("-o");
-        cmd2.arg(&c_out);
-        cmd2.arg("-pkg-sources");
-        cmd2.arg(format!("{}:{}", pkg_name, self.base_path.display()));
-        cmd2.arg("-pkg-sources");
-        cmd2.arg(format!("moonbitlang/core:{}", moon_home.join("lib/core").display()));
-        cmd2.args(["-g", "-O0", "-source-map", "-target", "native"]);
-
-        let out2 = cmd2
-            .output()
-            .map_err(|err| Error::compile(&self.name, &BenchmarkLanguage::MoonBit, "", &err.to_string()))?;
-        if !out2.status.success() {
-            return Err(Error::compile(
-                &self.name,
-                &BenchmarkLanguage::MoonBit,
-                str::from_utf8(&out2.stdout).unwrap_or("") ,
-                str::from_utf8(&out2.stderr).unwrap_or("") ,
-            ));
-        }
-
-        // 3) cc compile C to native binary
-        let mut cmd3 = Command::new("cc");
-        cmd3.arg("-I");
-        cmd3.arg(&include_dir);
-        cmd3.arg("-L");
-        cmd3.arg(&lib_dir);
-        cmd3.arg(&runtime_c);
-        cmd3.arg(&c_out);
-        cmd3.arg("-o");
-        cmd3.arg(&out_path);
-        cmd3.arg("-lm");
-        cmd3.arg("-DMOONBIT_NATIVE_NO_SYS_HEADER");
-
-        let out3 = cmd3
-            .output()
-            .map_err(|err| Error::compile(&self.name, &BenchmarkLanguage::MoonBit, "", &err.to_string()))?;
-        if !out3.status.success() {
-            return Err(Error::compile(
-                &self.name,
-                &BenchmarkLanguage::MoonBit,
-                str::from_utf8(&out3.stdout).unwrap_or(""),
-                str::from_utf8(&out3.stderr).unwrap_or(""),
-            ));
-        }
+        rename(&built, &out_path)
+            .map_err(|e| Error::file_access(&out_path, "move MoonBit binary", e))?;
 
         Ok(())
     }
