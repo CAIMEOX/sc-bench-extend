@@ -1,5 +1,6 @@
 /target
-/target_scc
+/target_scc/*
+!/target_scc/moon_workspace/*.json
 /results
 *.cmi
 *.cmo

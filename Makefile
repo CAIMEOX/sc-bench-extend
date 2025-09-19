@@ -34,3 +34,8 @@ clean:
 	find -name ".cm" -type d | xargs -r rm -r
 	find -name ".koka" -type d | xargs -r rm -r
 	rm -rf target_scc
+
+.PHONY: install
+install:
+	moon update
+	cd target_scc/moon_workspace && moon install
