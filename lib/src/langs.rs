@@ -14,10 +14,11 @@ pub enum BenchmarkLanguage {
     OCaml,
     Effekt,
     Koka,
+    MoonBit,
 }
 
 impl BenchmarkLanguage {
-    pub fn all() -> [BenchmarkLanguage; 7] {
+    pub fn all() -> [BenchmarkLanguage; 8] {
         [
             BenchmarkLanguage::Scc,
             BenchmarkLanguage::Rust,
@@ -26,6 +27,7 @@ impl BenchmarkLanguage {
             BenchmarkLanguage::OCaml,
             BenchmarkLanguage::Effekt,
             BenchmarkLanguage::Koka,
+            BenchmarkLanguage::MoonBit,
         ]
     }
 
@@ -38,6 +40,7 @@ impl BenchmarkLanguage {
             "ml" => Some(BenchmarkLanguage::OCaml),
             "effekt" => Some(BenchmarkLanguage::Effekt),
             "kk" => Some(BenchmarkLanguage::Koka),
+            "mbt" => Some(BenchmarkLanguage::MoonBit),
             _ => None,
         }
     }
@@ -51,6 +54,7 @@ impl BenchmarkLanguage {
             BenchmarkLanguage::OCaml => "ml",
             BenchmarkLanguage::Effekt => "effekt",
             BenchmarkLanguage::Koka => "kk",
+            BenchmarkLanguage::MoonBit => "mbt",
         }
     }
 
@@ -63,6 +67,7 @@ impl BenchmarkLanguage {
             BenchmarkLanguage::OCaml => "ocaml",
             BenchmarkLanguage::Effekt => "effekt",
             BenchmarkLanguage::Koka => "koka",
+            BenchmarkLanguage::MoonBit => "moonbit",
         }
     }
 
@@ -75,6 +80,7 @@ impl BenchmarkLanguage {
             "ocaml" => Ok(BenchmarkLanguage::OCaml),
             "effekt" => Ok(BenchmarkLanguage::Effekt),
             "koka" => Ok(BenchmarkLanguage::Koka),
+            "moonbit" => Ok(BenchmarkLanguage::MoonBit),
             _ => Err(Error::unknown_lang("read from suffix", s)),
         }
     }
@@ -168,6 +174,11 @@ impl BenchmarkLanguage {
                 cmd.arg("-O2");
                 cmd
             }
+            BenchmarkLanguage::MoonBit => {
+                // MoonBit compilation is handled specially in Benchmark::compile
+                // Here we return a harmless command (true) as a placeholder.
+                Command::new("true")
+            }
         }
     }
 }
@@ -182,6 +193,7 @@ impl fmt::Display for BenchmarkLanguage {
             BenchmarkLanguage::OCaml => f.write_str("OCaml"),
             BenchmarkLanguage::Effekt => f.write_str("Effekt"),
             BenchmarkLanguage::Koka => f.write_str("Koka"),
+            BenchmarkLanguage::MoonBit => f.write_str("MoonBit"),
         }
     }
 }
@@ -197,6 +209,7 @@ impl FromStr for BenchmarkLanguage {
             "mlton" => Ok(BenchmarkLanguage::SmlMlton),
             "effekt" => Ok(BenchmarkLanguage::Effekt),
             "koka" => Ok(BenchmarkLanguage::Koka),
+            "moonbit" => Ok(BenchmarkLanguage::MoonBit),
             _ => Err(Error::unknown_lang("Parse Language Name", s)),
         }
     }

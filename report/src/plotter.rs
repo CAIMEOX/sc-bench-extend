@@ -29,6 +29,7 @@ fn lang_color(lang: &BenchmarkLanguage) -> RGBColor {
         BenchmarkLanguage::Rust => RGBColor(143, 30, 28),
         BenchmarkLanguage::SmlNj => RGBColor(143, 143, 143),
         BenchmarkLanguage::SmlMlton => RGBColor(37, 177, 228),
+        BenchmarkLanguage::MoonBit => RGBColor(170, 51, 127),
     }
 }
 
